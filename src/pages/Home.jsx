@@ -237,7 +237,9 @@ const Home = () => {
         ) : feedError ? (
           <div className="p-12 bg-white rounded-[2rem] border border-amber-100 text-center space-y-3 shadow-sm">
             <p className="text-lg font-bold text-slate-600">{feedError}</p>
-            <p className="text-sm text-slate-400 font-medium">Quando o banco local estiver ligado, os posts aparecem aqui.</p>
+            <p className="text-sm text-slate-400 font-medium">
+              Nenhum post disponível no momento.
+            </p>
           </div>
         ) : feed.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -368,10 +370,11 @@ const Home = () => {
           <div className="p-12 bg-white rounded-[2.5rem] border border-amber-100 shadow-sm text-center space-y-4">
             <Database className="mx-auto text-amber-500" size={42} />
             <div className="space-y-2">
-              <h3 className="text-xl font-black text-slate-900">Banco local ainda n&atilde;o conectado</h3>
+              <h3 className="text-xl font-black text-slate-900">
+                Nenhuma categoria encontrada
+              </h3>
               <p className="text-sm font-bold text-slate-500 max-w-2xl mx-auto">
-                A interface j&aacute; est&aacute; pronta para teste. Para carregar categorias, feed, login e cadastro de verdade,
-                inicie o PostgreSQL em localhost:5432 e rode as migrations/seeds do backend.
+                Ainda não há categorias cadastradas.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
