@@ -102,7 +102,8 @@ const Home = () => {
 
   const triggerDownload = (postId) => {
     const link = document.createElement('a');
-    link.href = `/api/resumes/${postId}/download`;
+    const apiBase = api.defaults.baseURL || '';
+    link.href = `${apiBase}/api/resumes/${postId}/download`;
     link.setAttribute('download', '');
     document.body.appendChild(link);
     link.click();
@@ -138,10 +139,87 @@ const Home = () => {
 
     if (navigator.share) {
       await navigator.share({ title, url });
-      return;
+    } else {
+      await navigator.clipboard?.writeText(url);
     }
 
-    await navigator.clipboard?.writeText(url);
+    try {
+      const response = await api.post(`/api/social/resumes/${post.id}/share`, { target: 'web' });
+      setFeed((current) =>
+        current.map((item) =>
+          item.id === post.id
+            ? { ...item, _count: { ...(item._count || {}), shares: response.data.shareCount } }
+            : item
+        )
+      );
+    } catch (err) {
+      if (err.response?.status === 401) navigate('/login');
+    }
+  };
+
+  const toggleRepost = async (postId) => {
+    if (!localStorage.getItem('token')) return navigate('/login');
+
+    try {
+      const response = await api.post(`/api/social/resumes/${postId}/repost`);
+      setFeed((current) =>
+        current.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                repostedByMe: Boolean(response.data.reposted),
+                _count: { ...(post._count || {}), reposts: response.data.repostCount },
+              }
+            : post
+        )
+      );
+    } catch (err) {
+      if (err.response?.status === 401) navigate('/login');
+    }
+  };
+
+  const toggleSave = async (postId) => {
+    if (!localStorage.getItem('token')) return navigate('/login');
+
+    try {
+      const response = await api.post(`/api/social/resumes/${postId}/save`);
+      setFeed((current) =>
+        current.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                savedByMe: Boolean(response.data.saved),
+                _count: { ...(post._count || {}), savedBy: response.data.savedCount },
+              }
+            : post
+        )
+      );
+    } catch (err) {
+      if (err.response?.status === 401) navigate('/login');
+    }
+  };
+
+  const createStatus = async () => {
+    if (!localStorage.getItem('token')) return navigate('/login');
+    const text = window.prompt('Escreva seu status de estudo');
+    if (!text?.trim()) return;
+
+    try {
+      await api.post('/api/social/stories', { text: text.trim() });
+    } catch (err) {
+      if (err.response?.status === 401) navigate('/login');
+    }
+  };
+
+  const sendFriendRequest = async (userId) => {
+    if (!localStorage.getItem('token')) return navigate('/login');
+    if (!userId || userId === savedUser?.id) return;
+
+    try {
+      await api.post(`/api/social/friends/${userId}/request`);
+    } catch (err) {
+      if (err.response?.status === 401) navigate('/login');
+    }
   };
 
   const people = feed
@@ -210,7 +288,7 @@ const Home = () => {
               <FileText size={18} className="text-indigo-600" />
               Postar
             </Link>
-            <button className="flex justify-center items-center gap-2 rounded-md py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+            <button onClick={createStatus} className="flex justify-center items-center gap-2 rounded-md py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
               <Image size={18} className="text-emerald-600" />
               Status
             </button>
@@ -223,7 +301,7 @@ const Home = () => {
 
         <section className="bg-white border border-slate-200 rounded-lg p-4">
           <div className="flex gap-3 overflow-x-auto pb-1">
-            <button className="min-w-[96px] h-32 rounded-lg border-2 border-dashed border-indigo-200 bg-indigo-50 text-indigo-700 flex flex-col items-center justify-center gap-2 font-black text-xs">
+            <button onClick={createStatus} className="min-w-[96px] h-32 rounded-lg border-2 border-dashed border-indigo-200 bg-indigo-50 text-indigo-700 flex flex-col items-center justify-center gap-2 font-black text-xs">
               <PlusCircle size={22} />
               Criar status
             </button>
@@ -335,10 +413,12 @@ const Home = () => {
 
                 <div className="px-4 py-2 border-y border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500">
                   <span>{post.views} visualizacoes</span>
-                  <span>{post._count?.likes || 0} curtidas - {post._count?.comments || 0} comentarios</span>
+                  <span>
+                    {post._count?.likes || 0} curtidas - {post._count?.comments || 0} comentarios - {post._count?.reposts || 0} reposts
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-6 gap-1 p-2">
+                <div className="grid grid-cols-2 sm:grid-cols-7 gap-1 p-2">
                   <button onClick={() => toggleLike(post.id)} className={`flex items-center justify-center gap-2 rounded-md py-2 text-sm font-black hover:bg-slate-50 ${post.likedByMe ? 'text-red-600' : 'text-slate-600'}`}>
                     <Heart size={18} />
                     Curtir
@@ -355,11 +435,15 @@ const Home = () => {
                     <Download size={18} />
                     Baixar
                   </button>
+                  <button onClick={() => toggleSave(post.id)} className={`flex items-center justify-center gap-2 rounded-md py-2 text-sm font-black hover:bg-slate-50 ${post.savedByMe ? 'text-indigo-600' : 'text-slate-600'}`}>
+                    <Bookmark size={18} />
+                    Salvar
+                  </button>
                   <Link to={`/resume/${post.id}`} className="flex items-center justify-center gap-2 rounded-md py-2 text-sm font-black text-slate-600 hover:bg-slate-50">
                     <Send size={18} />
                     Contribuir
                   </Link>
-                  <button className="flex items-center justify-center gap-2 rounded-md py-2 text-sm font-black text-slate-400 hover:bg-slate-50" title="Repost sera salvo no proximo modulo social">
+                  <button onClick={() => toggleRepost(post.id)} className={`flex items-center justify-center gap-2 rounded-md py-2 text-sm font-black hover:bg-slate-50 ${post.repostedByMe ? 'text-emerald-600' : 'text-slate-600'}`}>
                     <Repeat2 size={18} />
                     Repostar
                   </button>
@@ -408,7 +492,7 @@ const Home = () => {
                   <Link to={`/user/${person.id}`} className="block text-sm font-black text-slate-900 truncate">{person.name}</Link>
                   <p className="text-xs font-bold text-slate-500 truncate">{person.area}</p>
                 </div>
-                <button className="p-2 rounded-full bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600" title="Solicitacao de amizade em breve">
+                <button onClick={() => sendFriendRequest(person.id)} className="p-2 rounded-full bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600" title="Enviar solicitacao de amizade">
                   <UserPlus size={17} />
                 </button>
               </div>
@@ -417,9 +501,9 @@ const Home = () => {
         </section>
 
         <section className="bg-indigo-600 text-white rounded-lg p-4">
-          <h3 className="text-sm font-black">Proximo modulo social</h3>
+          <h3 className="text-sm font-black">Modulo social ativo</h3>
           <p className="mt-2 text-sm font-semibold text-indigo-100">
-            Stories persistentes, amizades, reposts e pedidos de contribuicao precisam de novas tabelas dedicadas.
+            Stories, amizades, reposts, salvos, compartilhamentos e contribuicoes ja possuem persistencia no banco.
           </p>
         </section>
       </aside>
