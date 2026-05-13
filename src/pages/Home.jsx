@@ -484,42 +484,42 @@ const Home = () => {
                   </div>
                 </div>
 
-                <div className="px-4 py-2 border-y border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500">
-                  <span>{post.views} visualizacoes</span>
-                  <span>
-                    {post._count?.likes || 0} curtidas - {post._count?.comments || 0} comentarios - {post._count?.reposts || 0} reposts
-                  </span>
+                <div className="px-4 py-2 border-y border-slate-100 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
+                  <span className="rounded-full bg-slate-50 px-2.5 py-1">{post.views} visualizacoes</span>
+                  <span className="rounded-full bg-slate-50 px-2.5 py-1">{post._count?.likes || 0} curtidas</span>
+                  <span className="rounded-full bg-slate-50 px-2.5 py-1">{post._count?.comments || 0} comentarios</span>
+                  <span className="rounded-full bg-slate-50 px-2.5 py-1">{post._count?.reposts || 0} reposts</span>
                 </div>
 
-                <div className="grid grid-cols-4 sm:grid-cols-7 gap-1 p-2">
-                  <button onClick={() => toggleLike(post.id)} className={`flex items-center justify-center gap-1.5 rounded-md py-2 text-xs sm:text-sm font-black hover:bg-slate-50 ${post.likedByMe ? 'text-red-600' : 'text-slate-600'}`} title="Curtir">
-                    <Heart size={18} />
-                    <span className="hidden sm:inline">Curtir</span>
-                  </button>
-                  <Link to={`/resume/${post.id}`} className="flex items-center justify-center gap-1.5 rounded-md py-2 text-xs sm:text-sm font-black text-slate-600 hover:bg-slate-50" title="Comentar">
-                    <MessageCircle size={18} />
-                    <span className="hidden sm:inline">Comentar</span>
-                  </Link>
-                  <button onClick={() => sharePost(post)} className="flex items-center justify-center gap-1.5 rounded-md py-2 text-xs sm:text-sm font-black text-slate-600 hover:bg-slate-50" title="Compartilhar">
-                    <Share2 size={18} />
-                    <span className="hidden sm:inline">Compartilhar</span>
-                  </button>
-                  <button onClick={() => triggerDownload(post.id)} className="flex items-center justify-center gap-1.5 rounded-md py-2 text-xs sm:text-sm font-black text-slate-600 hover:bg-slate-50" title="Baixar">
-                    <Download size={18} />
-                    <span className="hidden sm:inline">Baixar</span>
-                  </button>
-                  <button onClick={() => toggleSave(post.id)} className={`flex items-center justify-center gap-1.5 rounded-md py-2 text-xs sm:text-sm font-black hover:bg-slate-50 ${post.savedByMe ? 'text-indigo-600' : 'text-slate-600'}`} title="Salvar">
-                    <Bookmark size={18} />
-                    <span className="hidden sm:inline">Salvar</span>
-                  </button>
-                  <Link to={`/resume/${post.id}`} className="flex items-center justify-center gap-1.5 rounded-md py-2 text-xs sm:text-sm font-black text-slate-600 hover:bg-slate-50" title="Contribuir">
-                    <Send size={18} />
-                    <span className="hidden sm:inline">Contribuir</span>
-                  </Link>
-                  <button onClick={() => toggleRepost(post.id)} className={`flex items-center justify-center gap-1.5 rounded-md py-2 text-xs sm:text-sm font-black hover:bg-slate-50 ${post.repostedByMe ? 'text-emerald-600' : 'text-slate-600'}`} title="Repostar">
-                    <Repeat2 size={18} />
-                    <span className="hidden sm:inline">Repostar</span>
-                  </button>
+                <div className="px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => toggleLike(post.id)} className={`inline-flex h-9 items-center gap-2 rounded-full px-3 text-xs font-black hover:bg-slate-100 ${post.likedByMe ? 'bg-red-50 text-red-600' : 'text-slate-600'}`} title="Curtir">
+                      <Heart size={17} />
+                      Curtir
+                    </button>
+                    <Link to={`/resume/${post.id}`} className="inline-flex h-9 items-center gap-2 rounded-full px-3 text-xs font-black text-slate-600 hover:bg-slate-100" title="Comentar">
+                      <MessageCircle size={17} />
+                      Comentar
+                    </Link>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => sharePost(post)} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-indigo-600" title="Compartilhar">
+                      <Share2 size={17} />
+                    </button>
+                    <button onClick={() => triggerDownload(post.id)} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-indigo-600" title="Baixar">
+                      <Download size={17} />
+                    </button>
+                    <button onClick={() => toggleSave(post.id)} className={`inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 ${post.savedByMe ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500 hover:text-indigo-600'}`} title="Salvar">
+                      <Bookmark size={17} />
+                    </button>
+                    <Link to={`/resume/${post.id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-indigo-600" title="Contribuir">
+                      <Send size={17} />
+                    </Link>
+                    <button onClick={() => toggleRepost(post.id)} className={`inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 ${post.repostedByMe ? 'text-emerald-600 bg-emerald-50' : 'text-slate-500 hover:text-emerald-600'}`} title="Repostar">
+                      <Repeat2 size={17} />
+                    </button>
+                  </div>
                 </div>
               </article>
             ))}
