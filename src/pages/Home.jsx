@@ -13,6 +13,7 @@ import {
   MessageCircle,
   PlusCircle,
   Repeat2,
+  Scissors,
   Search,
   Send,
   Share2,
@@ -35,6 +36,8 @@ const Home = () => {
   const [storyModalOpen, setStoryModalOpen] = useState(false);
   const [storyText, setStoryText] = useState('');
   const [storyFile, setStoryFile] = useState(null);
+  const [storyVideoToTrim, setStoryVideoToTrim] = useState(null);
+  const [storyVideoTrim, setStoryVideoTrim] = useState(null);
   const [storySubmitting, setStorySubmitting] = useState(false);
   const [storyError, setStoryError] = useState('');
   const [viewingStory, setViewingStory] = useState(null);
@@ -215,10 +218,102 @@ const Home = () => {
     setStoryModalOpen(true);
   };
 
+  const resetStoryDraft = () => {
+    setStoryText('');
+    setStoryFile(null);
+    setStoryVideoToTrim(null);
+    setStoryVideoTrim(null);
+    setStoryError('');
+  };
+
+  const getVideoDuration = (file) =>
+    new Promise((resolve) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(video.src);
+        resolve(video.duration || 0);
+      };
+      video.onerror = () => resolve(0);
+      video.src = URL.createObjectURL(file);
+    });
+
+  const trimVideoFile = (file, startAt) =>
+    new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      const sourceUrl = URL.createObjectURL(file);
+      const chunks = [];
+      let recorder;
+
+      const cleanup = () => {
+        URL.revokeObjectURL(sourceUrl);
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      };
+
+      video.preload = 'auto';
+      video.playsInline = true;
+      video.crossOrigin = 'anonymous';
+      video.src = sourceUrl;
+
+      video.onerror = () => {
+        cleanup();
+        reject(new Error('Nao foi possivel ler o video.'));
+      };
+
+      video.onseeked = async () => {
+        try {
+          const stream = video.captureStream?.() || video.mozCaptureStream?.();
+          if (!stream || !window.MediaRecorder) throw new Error('Seu navegador nao suporta corte de video.');
+
+          const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+            ? 'video/webm;codecs=vp9'
+            : 'video/webm';
+
+          recorder = new MediaRecorder(stream, { mimeType });
+          recorder.ondataavailable = (event) => {
+            if (event.data?.size) chunks.push(event.data);
+          };
+          recorder.onerror = () => {
+            cleanup();
+            reject(new Error('Nao foi possivel cortar o video.'));
+          };
+          recorder.onstop = () => {
+            cleanup();
+            const clipped = new Blob(chunks, { type: 'video/webm' });
+            const baseName = file.name.replace(/\.[^.]+$/, '') || 'status';
+            resolve(new File([clipped], `${baseName}-30s.webm`, { type: 'video/webm' }));
+          };
+
+          recorder.start();
+          try {
+            await video.play();
+          } catch (err) {
+            video.muted = true;
+            await video.play();
+          }
+
+          window.setTimeout(() => {
+            if (recorder?.state === 'recording') recorder.stop();
+          }, 30000);
+        } catch (err) {
+          cleanup();
+          reject(err);
+        }
+      };
+
+      video.onloadedmetadata = () => {
+        video.currentTime = Math.min(Math.max(startAt, 0), Math.max((video.duration || 0) - 30, 0));
+      };
+    });
+
   const handleStoryFile = async (file) => {
     setStoryError('');
     if (!file) {
       setStoryFile(null);
+      setStoryVideoToTrim(null);
+      setStoryVideoTrim(null);
       return;
     }
 
@@ -228,29 +323,41 @@ const Home = () => {
     }
 
     if (file.type.startsWith('video/')) {
-      const duration = await new Promise((resolve) => {
-        const video = document.createElement('video');
-        video.preload = 'metadata';
-        video.onloadedmetadata = () => {
-          URL.revokeObjectURL(video.src);
-          resolve(video.duration);
-        };
-        video.onerror = () => resolve(999);
-        video.src = URL.createObjectURL(file);
-      });
+      const duration = await getVideoDuration(file);
 
       if (duration > 30.5) {
-        setStoryError('O video do status precisa ter ate 30 segundos.');
+        setStoryFile(null);
+        setStoryVideoToTrim(file);
+        setStoryVideoTrim({ duration, start: 0, trimming: false });
+        setStoryError('Esse video passa de 30 segundos. Escolha o trecho e corte antes de publicar.');
         return;
       }
     }
 
     setStoryFile(file);
+    setStoryVideoToTrim(null);
+    setStoryVideoTrim(null);
+  };
+
+  const cutStoryVideo = async () => {
+    if (!storyVideoToTrim || !storyVideoTrim) return;
+
+    try {
+      setStoryVideoTrim((current) => ({ ...current, trimming: true }));
+      setStoryError('');
+      const clippedFile = await trimVideoFile(storyVideoToTrim, storyVideoTrim.start);
+      setStoryFile(clippedFile);
+      setStoryVideoToTrim(null);
+      setStoryVideoTrim(null);
+    } catch (err) {
+      setStoryError(err.message || 'Nao foi possivel cortar o video neste navegador.');
+      setStoryVideoTrim((current) => (current ? { ...current, trimming: false } : current));
+    }
   };
 
   const submitStatus = async (event) => {
     event.preventDefault();
-    if (!storyText.trim() && !storyFile) {
+    if (!storyText.trim() && !storyFile && !storyVideoToTrim) {
       setStoryError('Escreva algo ou escolha uma foto/video para publicar.');
       return;
     }
@@ -260,13 +367,17 @@ const Home = () => {
       setStoryError('');
       const data = new FormData();
       if (storyText.trim()) data.append('text', storyText.trim());
-      if (storyFile) data.append('media', storyFile);
+      let mediaFile = storyFile;
+      if (!mediaFile && storyVideoToTrim) {
+        setStoryVideoTrim((current) => ({ ...current, trimming: true }));
+        mediaFile = await trimVideoFile(storyVideoToTrim, storyVideoTrim?.start || 0);
+      }
+      if (mediaFile) data.append('media', mediaFile);
       const response = await api.post('/api/social/stories', data, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setStories((current) => [response.data.story, ...current.filter((story) => story.id !== response.data.story.id)]);
-      setStoryText('');
-      setStoryFile(null);
+      resetStoryDraft();
       setStoryModalOpen(false);
     } catch (err) {
       if (err.response?.status === 401) navigate('/login');
@@ -587,7 +698,7 @@ const Home = () => {
         <form onSubmit={submitStatus} className="w-full max-w-md bg-white rounded-lg border border-slate-200 shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
             <h2 className="text-base font-black text-slate-900">Criar status</h2>
-            <button type="button" onClick={() => setStoryModalOpen(false)} className="p-2 rounded-md text-slate-500 hover:bg-slate-100" title="Fechar">
+            <button type="button" onClick={() => { resetStoryDraft(); setStoryModalOpen(false); }} className="p-2 rounded-md text-slate-500 hover:bg-slate-100" title="Fechar">
               <X size={18} />
             </button>
           </div>
@@ -607,11 +718,46 @@ const Home = () => {
               <span className="mt-1 block text-xs font-bold text-slate-400">Videos de ate 30 segundos</span>
               <input type="file" accept="image/*,video/*" className="hidden" onChange={(event) => handleStoryFile(event.target.files?.[0] || null)} />
             </label>
+            {storyVideoToTrim && storyVideoTrim && (
+              <div className="rounded-md border border-amber-100 bg-amber-50 p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <Scissors className="mt-0.5 text-amber-600" size={18} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-black text-slate-800">Cortar video para status</p>
+                    <p className="text-xs font-bold text-slate-500 truncate">{storyVideoToTrim.name}</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs font-black text-slate-500">
+                    <span>Inicio: {Math.round(storyVideoTrim.start)}s</span>
+                    <span>Fim: {Math.round(Math.min(storyVideoTrim.start + 30, storyVideoTrim.duration))}s</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max={Math.max(Math.floor(storyVideoTrim.duration - 30), 0)}
+                    value={storyVideoTrim.start}
+                    onChange={(event) => setStoryVideoTrim((current) => ({ ...current, start: Number(event.target.value) }))}
+                    className="w-full accent-indigo-600"
+                    disabled={storyVideoTrim.trimming}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={cutStoryVideo}
+                  disabled={storyVideoTrim.trimming}
+                  className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-xs font-black text-white disabled:opacity-50"
+                >
+                  <Scissors size={15} />
+                  {storyVideoTrim.trimming ? 'Cortando...' : 'Cortar 30s'}
+                </button>
+              </div>
+            )}
           </div>
           <div className="px-5 py-4 border-t border-slate-100 flex justify-end gap-2">
-            <button type="button" onClick={() => setStoryModalOpen(false)} className="px-4 py-2 rounded-md bg-slate-100 text-sm font-black text-slate-600">Cancelar</button>
+            <button type="button" onClick={() => { resetStoryDraft(); setStoryModalOpen(false); }} className="px-4 py-2 rounded-md bg-slate-100 text-sm font-black text-slate-600">Cancelar</button>
             <button type="submit" disabled={storySubmitting} className="px-4 py-2 rounded-md bg-indigo-600 text-sm font-black text-white disabled:opacity-50">
-              {storySubmitting ? 'Publicando...' : 'Publicar'}
+              {storySubmitting ? (storyVideoToTrim ? 'Cortando...' : 'Publicando...') : 'Publicar'}
             </button>
           </div>
         </form>
