@@ -13,6 +13,7 @@ import Profile from './pages/Profile';
 import UserPublicProfile from './pages/UserPublicProfile';
 import UserFollowers from './pages/UserFollowers';
 import UserFollowing from './pages/UserFollowing';
+import Notifications from './pages/Notifications';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -49,6 +50,7 @@ function App() {
             <Route path="/user/:id/followers" element={<UserFollowers />} />
             <Route path="/user/:id/following" element={<UserFollowing />} />
             <Route path="/user/:id" element={<UserPublicProfile />} />
+            <Route path="/notifications" element={user ? <Notifications /> : <Navigate to="/login" />} />
             
             {/* Rotas Protegidas */}
             <Route path="/upload" element={user ? <Upload /> : <Navigate to="/login" />} />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import api from '../services/api';
+import api, { resolveMediaUrl } from '../services/api';
 import { GraduationCap, Calendar, FileText, Hash, Heart, MessageCircle, Eye, Users, UserPlus, UserMinus, Download } from 'lucide-react';
 
 const UserPublicProfile = () => {
@@ -70,7 +70,7 @@ const UserPublicProfile = () => {
       <div className="bg-white rounded-[3rem] p-12 border border-slate-100 shadow-sm relative overflow-hidden">
         <div className="flex flex-col md:flex-row items-center space-y-8 md:space-y-0 md:space-x-12 relative z-10">
           <div className="w-40 h-40 rounded-[2.5rem] bg-indigo-100 flex items-center justify-center text-5xl font-black text-indigo-700 border-4 border-white shadow-2xl overflow-hidden">
-            {profile.photoUrl ? <img src={profile.photoUrl} alt="Foto" className="w-full h-full object-cover" /> : profile.name?.charAt(0)}
+            {profile.photoUrl ? <img src={resolveMediaUrl(profile.photoUrl)} alt="Foto" className="w-full h-full object-cover" /> : profile.name?.charAt(0)}
           </div>
           <div className="text-center md:text-left space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

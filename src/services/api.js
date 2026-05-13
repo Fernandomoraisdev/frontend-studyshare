@@ -13,6 +13,13 @@ const api = axios.create({
   timeout: 7000,
 });
 
+export const resolveMediaUrl = (url) => {
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) return url;
+  const apiBase = (api.defaults.baseURL || '').replace(/\/$/, '');
+  return `${apiBase}${url.startsWith('/') ? url : `/${url}`}`;
+};
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {

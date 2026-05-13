@@ -60,9 +60,9 @@ const Navbar = ({ user, setUser }) => {
               <Link to="/upload" className="p-2 rounded-full bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="Postar">
                 <PlusSquare size={20} />
               </Link>
-              <button className="p-2 rounded-full bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="Notificacoes">
+              <Link to="/notifications" className="p-2 rounded-full bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="Notificacoes">
                 <Bell size={20} />
-              </button>
+              </Link>
               <Link to="/profile" className="flex items-center space-x-2 text-sm font-bold hover:text-indigo-600 transition-colors">
                 <User size={20} />
                 <span className="hidden sm:inline">{user.name.split(' ')[0]}</span>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import api from '../services/api';
+import api, { resolveMediaUrl } from '../services/api';
 import { ChevronRight, Users, UserPlus, UserMinus } from 'lucide-react';
 
 const UserFollowers = () => {
@@ -75,7 +75,7 @@ const UserFollowers = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div className="flex items-center gap-5">
             <div className="w-16 h-16 rounded-2xl bg-indigo-100 flex items-center justify-center text-xl font-black text-indigo-700 border-2 border-white shadow-lg overflow-hidden">
-              {summary?.photoUrl ? <img src={summary.photoUrl} alt="Foto" className="w-full h-full object-cover" /> : summary?.name?.charAt(0)}
+              {summary?.photoUrl ? <img src={resolveMediaUrl(summary.photoUrl)} alt="Foto" className="w-full h-full object-cover" /> : summary?.name?.charAt(0)}
             </div>
             <div>
               <p className="text-xl font-black text-slate-900">{summary?.name || 'Usuário'}</p>
@@ -105,7 +105,7 @@ const UserFollowers = () => {
             <div key={u.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between gap-6">
               <Link to={`/user/${u.id}`} className="flex items-center gap-4 min-w-0">
                 <div className="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center text-base font-black text-indigo-700 border-2 border-white shadow-sm overflow-hidden flex-shrink-0">
-                  {u.photoUrl ? <img src={u.photoUrl} alt="Foto" className="w-full h-full object-cover" /> : u.name?.charAt(0)}
+                  {u.photoUrl ? <img src={resolveMediaUrl(u.photoUrl)} alt="Foto" className="w-full h-full object-cover" /> : u.name?.charAt(0)}
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-black text-slate-900 truncate">{u.name}</p>

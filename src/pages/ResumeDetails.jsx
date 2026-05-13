@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import api, { resolveMediaUrl } from '../services/api';
 import { FileText, User, Calendar, Eye, Download, Share2, ChevronRight, BookOpen, Heart, MessageCircle, Hash, ExternalLink, Pencil, Trash2 } from 'lucide-react';
 
 const ResumeDetails = () => {
@@ -233,12 +233,12 @@ const ResumeDetails = () => {
               {hasFile && isPdf ? (
                 <iframe
                   title="Visualizador"
-                  src={resume?.fileUrl}
+                  src={resolveMediaUrl(resume?.fileUrl)}
                   className="w-full h-[70vh]"
                 />
               ) : hasFile && isImage ? (
                 <div className="p-6">
-                  <img src={resume?.fileUrl} alt="Conteúdo" className="w-full max-h-[70vh] object-contain rounded-2xl border border-slate-200 bg-white" />
+                  <img src={resolveMediaUrl(resume?.fileUrl)} alt="Conteúdo" className="w-full max-h-[70vh] object-contain rounded-2xl border border-slate-200 bg-white" />
                 </div>
               ) : hasFile ? (
                 <div className="p-12 text-center space-y-6">
@@ -250,7 +250,7 @@ const ResumeDetails = () => {
                     <p className="text-sm font-bold text-slate-400">Clique para abrir ou baixar o arquivo.</p>
                   </div>
                   <a
-                    href={resume?.fileUrl}
+                    href={resolveMediaUrl(resume?.fileUrl)}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-2 text-indigo-600 font-black uppercase tracking-widest text-xs hover:underline"
@@ -315,7 +315,7 @@ const ResumeDetails = () => {
                   <div key={c.id} className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
                     <div className="flex items-start gap-4">
                       <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-sm font-black text-indigo-700 border-2 border-white shadow-sm overflow-hidden flex-shrink-0">
-                        {c.user?.photoUrl ? <img src={c.user.photoUrl} alt="Foto" className="w-full h-full object-cover" /> : c.user?.name?.charAt(0)}
+                        {c.user?.photoUrl ? <img src={resolveMediaUrl(c.user.photoUrl)} alt="Foto" className="w-full h-full object-cover" /> : c.user?.name?.charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0 space-y-2">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
@@ -343,7 +343,7 @@ const ResumeDetails = () => {
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest border-b border-slate-50 pb-4">Sobre o Autor</h3>
             <div className="flex items-center space-x-4">
               <div className="w-16 h-16 rounded-2xl bg-indigo-100 flex items-center justify-center text-xl font-black text-indigo-700 border-2 border-white shadow-lg overflow-hidden">
-                {resume?.user?.photoUrl ? <img src={resume.user.photoUrl} alt="Foto" className="w-full h-full object-cover" /> : resume?.user?.name.charAt(0)}
+                {resume?.user?.photoUrl ? <img src={resolveMediaUrl(resume.user.photoUrl)} alt="Foto" className="w-full h-full object-cover" /> : resume?.user?.name.charAt(0)}
               </div>
               <div>
                 <p className="font-black text-slate-900">{resume?.user?.name}</p>

@@ -10,6 +10,8 @@ const Upload = () => {
   const [formData, setFormData] = useState({
     title: '', description: '', content: '', tags: '', folderId: '', resume: null
   });
+  const [newFolderName, setNewFolderName] = useState('');
+  const [creatingFolder, setCreatingFolder] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const navigate = useNavigate();
@@ -31,6 +33,7 @@ const Upload = () => {
     setSelectedCategory(categoryId);
     const category = categories.find(c => c.id === parseInt(categoryId));
     setFolders(category ? category.folders : []);
+    setFormData((current) => ({ ...current, folderId: '' }));
   };
 
   const handleChange = (e) => {
@@ -39,6 +42,36 @@ const Upload = () => {
       setFormData({ ...formData, resume: files[0] });
     } else {
       setFormData({ ...formData, [name]: value });
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    const name = newFolderName.trim();
+    if (!selectedCategory || !name) return;
+
+    try {
+      setCreatingFolder(true);
+      setMessage({ type: '', text: '' });
+      const response = await api.post('/api/categories/folders', {
+        name,
+        categoryId: selectedCategory,
+      });
+      const folder = response.data;
+      setFolders((current) => [...current, folder]);
+      setCategories((current) =>
+        current.map((category) =>
+          category.id === parseInt(selectedCategory)
+            ? { ...category, folders: [...(category.folders || []), folder] }
+            : category
+        )
+      );
+      setFormData((current) => ({ ...current, folderId: String(folder.id) }));
+      setNewFolderName('');
+      setMessage({ type: 'success', text: 'Pasta criada e selecionada.' });
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Erro ao criar pasta.' });
+    } finally {
+      setCreatingFolder(false);
     }
   };
 
@@ -123,6 +156,24 @@ const Upload = () => {
                 <option value="" disabled>Selecione a pasta</option>
                 {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
+              <div className="mt-3 flex gap-2">
+                <input
+                  type="text"
+                  value={newFolderName}
+                  onChange={(event) => setNewFolderName(event.target.value)}
+                  disabled={!selectedCategory}
+                  className="min-w-0 flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
+                  placeholder="Criar nova pasta ou subpasta"
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateFolder}
+                  disabled={!selectedCategory || !newFolderName.trim() || creatingFolder}
+                  className="px-4 py-3 rounded-xl bg-slate-900 text-white text-xs font-black uppercase tracking-widest disabled:opacity-50"
+                >
+                  {creatingFolder ? '...' : 'Adicionar'}
+                </button>
+              </div>
             </div>
           </div>
 

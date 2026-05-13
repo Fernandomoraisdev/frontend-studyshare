@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../services/api';
-import { GraduationCap, FileText, Calendar, Upload, Download, Pencil, Trash2, Users } from 'lucide-react';
+import api, { resolveMediaUrl } from '../services/api';
+import { GraduationCap, FileText, Calendar, Upload, Download, Pencil, Trash2, Users, Eye, EyeOff, Lock } from 'lucide-react';
 
 const Profile = ({ user, setUser }) => {
   const [profileData, setProfileData] = useState(null);
@@ -10,6 +10,10 @@ const Profile = ({ user, setUser }) => {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoMessage, setPhotoMessage] = useState({ type: '', text: '' });
   const [postMessage, setPostMessage] = useState({ type: '', text: '' });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState({ type: '', text: '' });
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -40,12 +44,33 @@ const Profile = ({ user, setUser }) => {
       });
 
       setProfileData((prev) => (prev ? { ...prev, photoUrl: response.data.user.photoUrl } : prev));
+      setUser?.((prev) => {
+        const updated = { ...(prev || {}), photoUrl: response.data.user.photoUrl };
+        localStorage.setItem('user', JSON.stringify(updated));
+        return updated;
+      });
       setPhotoFile(null);
       setPhotoMessage({ type: 'success', text: 'Foto atualizada com sucesso!' });
     } catch (err) {
       setPhotoMessage({ type: 'error', text: err.response?.data?.message || 'Erro ao atualizar foto.' });
     } finally {
       setUploadingPhoto(false);
+    }
+  };
+
+  const handlePasswordChange = async (event) => {
+    event.preventDefault();
+    setPasswordLoading(true);
+    setPasswordMessage({ type: '', text: '' });
+
+    try {
+      const response = await api.post('/api/auth/change-password', passwordForm);
+      setPasswordForm({ currentPassword: '', newPassword: '' });
+      setPasswordMessage({ type: 'success', text: response.data.message || 'Senha atualizada.' });
+    } catch (err) {
+      setPasswordMessage({ type: 'error', text: err.response?.data?.message || 'Nao foi possivel trocar a senha.' });
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -71,7 +96,7 @@ const Profile = ({ user, setUser }) => {
       <div className="bg-white rounded-[3rem] p-12 border border-slate-100 shadow-sm relative overflow-hidden">
         <div className="flex flex-col md:flex-row items-center space-y-8 md:space-y-0 md:space-x-12 relative z-10">
           <div className="w-40 h-40 rounded-[2.5rem] bg-indigo-100 flex items-center justify-center text-5xl font-black text-indigo-700 border-4 border-white shadow-2xl overflow-hidden">
-            {profileData?.photoUrl ? <img src={profileData.photoUrl} alt="Foto" className="w-full h-full object-cover" /> : profileData?.name.charAt(0)}
+            {profileData?.photoUrl ? <img src={resolveMediaUrl(profileData.photoUrl)} alt="Foto" className="w-full h-full object-cover" /> : profileData?.name.charAt(0)}
           </div>
           <div className="text-center md:text-left space-y-4">
             <h2 className="text-4xl font-black tracking-tighter text-slate-900">{profileData?.name}</h2>
@@ -124,6 +149,56 @@ const Profile = ({ user, setUser }) => {
         </div>
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -translate-y-1/2 translate-x-1/2 opacity-50"></div>
       </div>
+
+      <form onSubmit={handlePasswordChange} className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Trocar senha</h3>
+            <p className="text-xs font-bold text-slate-400 mt-1">Use quando quiser atualizar sua senha de acesso.</p>
+          </div>
+          <button type="button" onClick={() => setShowPasswords((value) => !value)} className="p-2 rounded-md bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600" title={showPasswords ? 'Ocultar senha' : 'Ver senha'}>
+            {showPasswords ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        </div>
+
+        {passwordMessage.text && (
+          <div className={`px-4 py-3 rounded-md text-sm font-bold border ${
+            passwordMessage.type === 'success' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'
+          }`}>
+            {passwordMessage.text}
+          </div>
+        )}
+
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+            <input
+              type={showPasswords ? 'text' : 'password'}
+              value={passwordForm.currentPassword}
+              onChange={(event) => setPasswordForm((prev) => ({ ...prev, currentPassword: event.target.value }))}
+              className="w-full pl-10 pr-3 py-3 rounded-md bg-slate-50 border border-slate-200 text-sm font-bold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              placeholder="Senha atual"
+              required
+            />
+          </div>
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+            <input
+              type={showPasswords ? 'text' : 'password'}
+              value={passwordForm.newPassword}
+              onChange={(event) => setPasswordForm((prev) => ({ ...prev, newPassword: event.target.value }))}
+              className="w-full pl-10 pr-3 py-3 rounded-md bg-slate-50 border border-slate-200 text-sm font-bold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              placeholder="Nova senha (min. 8)"
+              minLength={8}
+              required
+            />
+          </div>
+        </div>
+
+        <button type="submit" disabled={passwordLoading} className="px-5 py-3 rounded-md bg-slate-900 text-white text-sm font-black hover:bg-indigo-700 disabled:opacity-50">
+          {passwordLoading ? 'Salvando...' : 'Atualizar senha'}
+        </button>
+      </form>
 
       <div className="space-y-8">
         <div className="flex justify-between items-center border-b border-slate-200 pb-6">

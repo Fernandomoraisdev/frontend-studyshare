@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import api from '../services/api';
+import api, { resolveMediaUrl } from '../services/api';
 import { Folder, ChevronRight, FileText, User, Eye, Plus } from 'lucide-react';
 
 const FolderView = () => {
@@ -83,7 +83,7 @@ const FolderView = () => {
 
                 <div className="pt-6 border-t border-slate-50 flex items-center space-x-3">
                   <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center text-[10px] font-black text-indigo-700 border-2 border-white shadow-sm overflow-hidden">
-                    {resume.user?.photoUrl ? <img src={resume.user.photoUrl} alt="Foto" className="w-full h-full object-cover" /> : resume.user?.name.charAt(0)}
+                    {resume.user?.photoUrl ? <img src={resolveMediaUrl(resume.user.photoUrl)} alt="Foto" className="w-full h-full object-cover" /> : resume.user?.name.charAt(0)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-black text-slate-900 truncate">{resume.user?.name}</p>

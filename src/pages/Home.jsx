@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import api from '../services/api';
+import api, { resolveMediaUrl } from '../services/api';
 import {
   Bookmark,
   BookOpen,
@@ -20,6 +20,7 @@ import {
   Upload,
   UserPlus,
   Users,
+  X,
 } from 'lucide-react';
 
 const Home = () => {
@@ -30,6 +31,13 @@ const Home = () => {
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [feedLoading, setFeedLoading] = useState(true);
   const [feedError, setFeedError] = useState('');
+  const [stories, setStories] = useState([]);
+  const [storyModalOpen, setStoryModalOpen] = useState(false);
+  const [storyText, setStoryText] = useState('');
+  const [storyFile, setStoryFile] = useState(null);
+  const [storySubmitting, setStorySubmitting] = useState(false);
+  const [storyError, setStoryError] = useState('');
+  const [viewingStory, setViewingStory] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const q = searchParams.get('q') || '';
@@ -47,13 +55,15 @@ const Home = () => {
     const fetchBase = async () => {
       setCategoriesLoading(true);
 
-      const [categoriesResult, tagsResult] = await Promise.allSettled([
+      const [categoriesResult, tagsResult, storiesResult] = await Promise.allSettled([
         api.get('/api/categories'),
         api.get('/api/tags'),
+        api.get('/api/social/stories'),
       ]);
 
       setCategories(categoriesResult.status === 'fulfilled' ? categoriesResult.value.data : []);
       setTags(tagsResult.status === 'fulfilled' ? tagsResult.value.data : []);
+      setStories(storiesResult.status === 'fulfilled' ? storiesResult.value.data : []);
       setCategoriesLoading(false);
     };
 
@@ -199,15 +209,70 @@ const Home = () => {
     }
   };
 
-  const createStatus = async () => {
+  const openCreateStatus = () => {
     if (!localStorage.getItem('token')) return navigate('/login');
-    const text = window.prompt('Escreva seu status de estudo');
-    if (!text?.trim()) return;
+    setStoryError('');
+    setStoryModalOpen(true);
+  };
+
+  const handleStoryFile = async (file) => {
+    setStoryError('');
+    if (!file) {
+      setStoryFile(null);
+      return;
+    }
+
+    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+      setStoryError('Escolha uma imagem ou um video.');
+      return;
+    }
+
+    if (file.type.startsWith('video/')) {
+      const duration = await new Promise((resolve) => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.onloadedmetadata = () => {
+          URL.revokeObjectURL(video.src);
+          resolve(video.duration);
+        };
+        video.onerror = () => resolve(999);
+        video.src = URL.createObjectURL(file);
+      });
+
+      if (duration > 30.5) {
+        setStoryError('O video do status precisa ter ate 30 segundos.');
+        return;
+      }
+    }
+
+    setStoryFile(file);
+  };
+
+  const submitStatus = async (event) => {
+    event.preventDefault();
+    if (!storyText.trim() && !storyFile) {
+      setStoryError('Escreva algo ou escolha uma foto/video para publicar.');
+      return;
+    }
 
     try {
-      await api.post('/api/social/stories', { text: text.trim() });
+      setStorySubmitting(true);
+      setStoryError('');
+      const data = new FormData();
+      if (storyText.trim()) data.append('text', storyText.trim());
+      if (storyFile) data.append('media', storyFile);
+      const response = await api.post('/api/social/stories', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setStories((current) => [response.data.story, ...current.filter((story) => story.id !== response.data.story.id)]);
+      setStoryText('');
+      setStoryFile(null);
+      setStoryModalOpen(false);
     } catch (err) {
       if (err.response?.status === 401) navigate('/login');
+      else setStoryError(err.response?.data?.message || 'Nao foi possivel publicar o status.');
+    } finally {
+      setStorySubmitting(false);
     }
   };
 
@@ -228,7 +293,10 @@ const Home = () => {
     .filter((user, index, arr) => arr.findIndex((item) => item.id === user.id) === index)
     .slice(0, 5);
 
+  const statusCards = stories.length > 0 ? stories : people.map((person) => ({ id: `person-${person.id}`, user: person }));
+
   return (
+    <>
     <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_280px] gap-6">
       <aside className="hidden lg:block space-y-4 sticky top-24 self-start">
         <section className="bg-white border border-slate-200 rounded-lg overflow-hidden">
@@ -236,7 +304,7 @@ const Home = () => {
           <div className="p-4 -mt-10">
             <div className="w-16 h-16 rounded-full bg-white border-4 border-white shadow-sm flex items-center justify-center overflow-hidden">
               {savedUser?.photoUrl ? (
-                <img src={savedUser.photoUrl} alt="Perfil" className="w-full h-full object-cover" />
+                <img src={resolveMediaUrl(savedUser.photoUrl)} alt="Perfil" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-xl font-black text-indigo-600">{savedUser?.name?.charAt(0) || 'S'}</span>
               )}
@@ -288,7 +356,7 @@ const Home = () => {
               <FileText size={18} className="text-indigo-600" />
               Postar
             </Link>
-            <button onClick={createStatus} className="flex justify-center items-center gap-2 rounded-md py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+            <button onClick={openCreateStatus} className="flex justify-center items-center gap-2 rounded-md py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
               <Image size={18} className="text-emerald-600" />
               Status
             </button>
@@ -301,18 +369,23 @@ const Home = () => {
 
         <section className="bg-white border border-slate-200 rounded-lg p-4">
           <div className="flex gap-3 overflow-x-auto pb-1">
-            <button onClick={createStatus} className="min-w-[96px] h-32 rounded-lg border-2 border-dashed border-indigo-200 bg-indigo-50 text-indigo-700 flex flex-col items-center justify-center gap-2 font-black text-xs">
+            <button onClick={openCreateStatus} className="min-w-[96px] h-32 rounded-lg border-2 border-dashed border-indigo-200 bg-indigo-50 text-indigo-700 flex flex-col items-center justify-center gap-2 font-black text-xs">
               <PlusCircle size={22} />
               Criar status
             </button>
-            {people.map((person) => (
-              <Link key={person.id} to={`/user/${person.id}`} className="min-w-[96px] h-32 rounded-lg bg-slate-900 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-indigo-500/40" />
-                <div className="absolute top-2 left-2 w-9 h-9 rounded-full bg-white border-2 border-indigo-500 flex items-center justify-center text-indigo-700 font-black">
-                  {person.photoUrl ? <img src={person.photoUrl} alt={person.name} className="w-full h-full object-cover rounded-full" /> : person.name?.charAt(0)}
+            {statusCards.map((story) => (
+              <button key={story.id} onClick={() => stories.length ? setViewingStory(story) : navigate(`/user/${story.user.id}`)} className="min-w-[96px] h-32 rounded-lg bg-slate-900 relative overflow-hidden text-left">
+                {story.mediaUrl && story.mediaType?.startsWith('image/') ? (
+                  <img src={resolveMediaUrl(story.mediaUrl)} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                ) : story.mediaUrl && story.mediaType?.startsWith('video/') ? (
+                  <video src={resolveMediaUrl(story.mediaUrl)} className="absolute inset-0 w-full h-full object-cover" muted />
+                ) : null}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-slate-900/30 to-indigo-500/40" />
+                <div className="absolute top-2 left-2 w-9 h-9 rounded-full bg-white border-2 border-indigo-500 flex items-center justify-center text-indigo-700 font-black overflow-hidden">
+                  {story.user?.photoUrl ? <img src={resolveMediaUrl(story.user.photoUrl)} alt={story.user.name} className="w-full h-full object-cover" /> : story.user?.name?.charAt(0)}
                 </div>
-                <span className="absolute bottom-2 left-2 right-2 text-white text-xs font-black leading-tight">{person.name}</span>
-              </Link>
+                <span className="absolute bottom-2 left-2 right-2 text-white text-xs font-black leading-tight">{story.user?.name}</span>
+              </button>
             ))}
           </div>
         </section>
@@ -383,7 +456,7 @@ const Home = () => {
               <article key={post.id} className="bg-white border border-slate-200 rounded-lg overflow-hidden">
                 <div className="p-4 flex items-start gap-3">
                   <Link to={`/user/${post.user?.id}`} className="w-11 h-11 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-black overflow-hidden flex-shrink-0">
-                    {post.user?.photoUrl ? <img src={post.user.photoUrl} alt={post.user.name} className="w-full h-full object-cover" /> : post.user?.name?.charAt(0)}
+                    {post.user?.photoUrl ? <img src={resolveMediaUrl(post.user.photoUrl)} alt={post.user.name} className="w-full h-full object-cover" /> : post.user?.name?.charAt(0)}
                   </Link>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-3">
@@ -418,34 +491,34 @@ const Home = () => {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-7 gap-1 p-2">
-                  <button onClick={() => toggleLike(post.id)} className={`flex items-center justify-center gap-2 rounded-md py-2 text-sm font-black hover:bg-slate-50 ${post.likedByMe ? 'text-red-600' : 'text-slate-600'}`}>
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-1 p-2">
+                  <button onClick={() => toggleLike(post.id)} className={`flex items-center justify-center gap-1.5 rounded-md py-2 text-xs sm:text-sm font-black hover:bg-slate-50 ${post.likedByMe ? 'text-red-600' : 'text-slate-600'}`} title="Curtir">
                     <Heart size={18} />
-                    Curtir
+                    <span className="hidden sm:inline">Curtir</span>
                   </button>
-                  <Link to={`/resume/${post.id}`} className="flex items-center justify-center gap-2 rounded-md py-2 text-sm font-black text-slate-600 hover:bg-slate-50">
+                  <Link to={`/resume/${post.id}`} className="flex items-center justify-center gap-1.5 rounded-md py-2 text-xs sm:text-sm font-black text-slate-600 hover:bg-slate-50" title="Comentar">
                     <MessageCircle size={18} />
-                    Comentar
+                    <span className="hidden sm:inline">Comentar</span>
                   </Link>
-                  <button onClick={() => sharePost(post)} className="flex items-center justify-center gap-2 rounded-md py-2 text-sm font-black text-slate-600 hover:bg-slate-50">
+                  <button onClick={() => sharePost(post)} className="flex items-center justify-center gap-1.5 rounded-md py-2 text-xs sm:text-sm font-black text-slate-600 hover:bg-slate-50" title="Compartilhar">
                     <Share2 size={18} />
-                    Compartilhar
+                    <span className="hidden sm:inline">Compartilhar</span>
                   </button>
-                  <button onClick={() => triggerDownload(post.id)} className="flex items-center justify-center gap-2 rounded-md py-2 text-sm font-black text-slate-600 hover:bg-slate-50">
+                  <button onClick={() => triggerDownload(post.id)} className="flex items-center justify-center gap-1.5 rounded-md py-2 text-xs sm:text-sm font-black text-slate-600 hover:bg-slate-50" title="Baixar">
                     <Download size={18} />
-                    Baixar
+                    <span className="hidden sm:inline">Baixar</span>
                   </button>
-                  <button onClick={() => toggleSave(post.id)} className={`flex items-center justify-center gap-2 rounded-md py-2 text-sm font-black hover:bg-slate-50 ${post.savedByMe ? 'text-indigo-600' : 'text-slate-600'}`}>
+                  <button onClick={() => toggleSave(post.id)} className={`flex items-center justify-center gap-1.5 rounded-md py-2 text-xs sm:text-sm font-black hover:bg-slate-50 ${post.savedByMe ? 'text-indigo-600' : 'text-slate-600'}`} title="Salvar">
                     <Bookmark size={18} />
-                    Salvar
+                    <span className="hidden sm:inline">Salvar</span>
                   </button>
-                  <Link to={`/resume/${post.id}`} className="flex items-center justify-center gap-2 rounded-md py-2 text-sm font-black text-slate-600 hover:bg-slate-50">
+                  <Link to={`/resume/${post.id}`} className="flex items-center justify-center gap-1.5 rounded-md py-2 text-xs sm:text-sm font-black text-slate-600 hover:bg-slate-50" title="Contribuir">
                     <Send size={18} />
-                    Contribuir
+                    <span className="hidden sm:inline">Contribuir</span>
                   </Link>
-                  <button onClick={() => toggleRepost(post.id)} className={`flex items-center justify-center gap-2 rounded-md py-2 text-sm font-black hover:bg-slate-50 ${post.repostedByMe ? 'text-emerald-600' : 'text-slate-600'}`}>
+                  <button onClick={() => toggleRepost(post.id)} className={`flex items-center justify-center gap-1.5 rounded-md py-2 text-xs sm:text-sm font-black hover:bg-slate-50 ${post.repostedByMe ? 'text-emerald-600' : 'text-slate-600'}`} title="Repostar">
                     <Repeat2 size={18} />
-                    Repostar
+                    <span className="hidden sm:inline">Repostar</span>
                   </button>
                 </div>
               </article>
@@ -486,7 +559,7 @@ const Home = () => {
             {people.map((person) => (
               <div key={person.id} className="flex items-center gap-3">
                 <Link to={`/user/${person.id}`} className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-black overflow-hidden">
-                  {person.photoUrl ? <img src={person.photoUrl} alt={person.name} className="w-full h-full object-cover" /> : person.name?.charAt(0)}
+                  {person.photoUrl ? <img src={resolveMediaUrl(person.photoUrl)} alt={person.name} className="w-full h-full object-cover" /> : person.name?.charAt(0)}
                 </Link>
                 <div className="min-w-0 flex-1">
                   <Link to={`/user/${person.id}`} className="block text-sm font-black text-slate-900 truncate">{person.name}</Link>
@@ -508,6 +581,69 @@ const Home = () => {
         </section>
       </aside>
     </div>
+
+    {storyModalOpen && (
+      <div className="fixed inset-0 z-[80] bg-slate-950/60 px-4 py-6 flex items-center justify-center">
+        <form onSubmit={submitStatus} className="w-full max-w-md bg-white rounded-lg border border-slate-200 shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <h2 className="text-base font-black text-slate-900">Criar status</h2>
+            <button type="button" onClick={() => setStoryModalOpen(false)} className="p-2 rounded-md text-slate-500 hover:bg-slate-100" title="Fechar">
+              <X size={18} />
+            </button>
+          </div>
+          <div className="p-5 space-y-4">
+            {storyError && <div className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm font-bold text-red-600">{storyError}</div>}
+            <textarea
+              value={storyText}
+              onChange={(event) => setStoryText(event.target.value)}
+              rows="4"
+              maxLength={800}
+              className="w-full rounded-md border border-slate-200 bg-slate-50 p-3 text-sm font-semibold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              placeholder="Escreva algo para seu status..."
+            />
+            <label className="block cursor-pointer rounded-md border-2 border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center hover:border-indigo-300">
+              <Image className="mx-auto text-slate-400" size={26} />
+              <span className="mt-2 block text-sm font-black text-slate-700">{storyFile ? storyFile.name : 'Adicionar foto ou video'}</span>
+              <span className="mt-1 block text-xs font-bold text-slate-400">Videos de ate 30 segundos</span>
+              <input type="file" accept="image/*,video/*" className="hidden" onChange={(event) => handleStoryFile(event.target.files?.[0] || null)} />
+            </label>
+          </div>
+          <div className="px-5 py-4 border-t border-slate-100 flex justify-end gap-2">
+            <button type="button" onClick={() => setStoryModalOpen(false)} className="px-4 py-2 rounded-md bg-slate-100 text-sm font-black text-slate-600">Cancelar</button>
+            <button type="submit" disabled={storySubmitting} className="px-4 py-2 rounded-md bg-indigo-600 text-sm font-black text-white disabled:opacity-50">
+              {storySubmitting ? 'Publicando...' : 'Publicar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    )}
+
+    {viewingStory && (
+      <div className="fixed inset-0 z-[90] bg-black flex items-center justify-center">
+        <button onClick={() => setViewingStory(null)} className="absolute top-4 right-4 p-2 rounded-full bg-white/10 text-white hover:bg-white/20" title="Fechar">
+          <X size={22} />
+        </button>
+        <div className="absolute top-4 left-4 right-16 flex items-center gap-3 text-white">
+          <div className="w-10 h-10 rounded-full bg-white overflow-hidden flex items-center justify-center text-indigo-700 font-black">
+            {viewingStory.user?.photoUrl ? <img src={resolveMediaUrl(viewingStory.user.photoUrl)} alt={viewingStory.user.name} className="w-full h-full object-cover" /> : viewingStory.user?.name?.charAt(0)}
+          </div>
+          <div>
+            <p className="text-sm font-black">{viewingStory.user?.name}</p>
+            <p className="text-xs font-bold text-white/60">expira em 24h</p>
+          </div>
+        </div>
+        <div className="w-full max-w-lg px-4">
+          {viewingStory.mediaUrl && viewingStory.mediaType?.startsWith('image/') && (
+            <img src={resolveMediaUrl(viewingStory.mediaUrl)} alt="" className="max-h-[75vh] w-full object-contain rounded-lg" />
+          )}
+          {viewingStory.mediaUrl && viewingStory.mediaType?.startsWith('video/') && (
+            <video src={resolveMediaUrl(viewingStory.mediaUrl)} className="max-h-[75vh] w-full rounded-lg" controls autoPlay />
+          )}
+          {viewingStory.text && <p className="mt-4 rounded-lg bg-white/10 p-4 text-center text-lg font-bold text-white">{viewingStory.text}</p>}
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 
